@@ -1,0 +1,28 @@
+# Gradle build outputs and caches
+.gradle/
+build/
+**/build/
+
+# Local Android SDK path (machine-specific)
+local.properties
+
+# macOS metadata
+.DS_Store
+
+# IntelliJ / Android Studio — keep project config, ignore workspace state
+.idea/workspace.xml
+.idea/caches/
+.idea/deploymentTargetSelector.xml
+.idea/migrations.xml
+
+# Compiled APKs / AABs (outputs are in build/ but be explicit)
+*.apk
+*.aab
+*.ap_
+
+# Keystore / signing secrets
+*.jks
+*.keystore
+*.p12
+release.properties
+keystore.properties

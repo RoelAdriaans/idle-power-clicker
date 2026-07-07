@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Idle Power Helper</string>
+    <string name="accessibility_service_description">
+        Idle Power Helper auto-merger: performs swipe gestures to merge batteries in the Idle Power
+        game. It does NOT read any text, passwords, or personal data from your screen.
+    </string>
+</resources>

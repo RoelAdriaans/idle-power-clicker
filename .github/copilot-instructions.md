@@ -1,0 +1,158 @@
+# Copilot Instructions — Idle Power Helper
+
+Android overlay app (Kotlin) that auto-merges batteries in the **Idle Power** idle game by
+injecting swipe gestures via the Accessibility API.
+
+---
+
+## Build & Install
+
+```bash
+# Debug build
+./gradlew assembleDebug
+
+# Build + install on connected device
+./gradlew installDebug
+
+# Re-enable accessibility service after install (Android security resets it on each update)
+./gradlew installDebug && ./gradlew enableA11y
+```
+
+There are **no unit tests** in this project. Validate changes with `assembleDebug`.
+
+---
+
+## Architecture
+
+```
+MainActivity  ──launches──▶  OverlayService          (foreground service, Dispatchers.Default)
+                                    │
+                                    ├── BatteryMerger          (pure Kotlin object, no Android deps)
+                                    ├── GridConfig / GridBounds (SharedPreferences wrapper)
+                                    ├── GridDebugView          (fullscreen transparent calibration overlay)
+                                    └── SwipeAccessibilityService.instance
+                                                │
+                                        dispatchGesture() — absolute screen coordinates
+```
+
+### `OverlayService`
+Central coordinator. Owns the floating `overlay_panel` control panel and the coroutine merge loop.
+- Loop runs on `Dispatchers.Default`; all UI updates post to main thread via `Handler(Looper.getMainLooper()).post { }`.
+- Uses `SupervisorJob` so individual step failures don't cancel the whole loop.
+- `sweepIter` tracks position in the 32 767-move sequence and is **never reset on pause** — only on service restart.
+
+### `SwipeAccessibilityService`
+Exposes itself via `companion object { var instance }`. `performSwipe()` **must be called from the main thread** — it wraps `dispatchGesture()` which is main-thread-only.
+
+### `BatteryMerger`
+Stateless `object`. Generates a deterministic sequence of 32 767 valid same-tier merge moves
+using a **Tower of Hanoi algorithm over a snake path through all 16 cells**. See `ALGORITHM.md`
+for a full explanation. No Android dependencies.
+
+### `GridBounds`
+Stores **absolute pixel coordinates** (never percentages or dp). Persisted to SharedPreferences
+via `GridConfig`. `cellCenter(row, col)` returns the centre pixel of a grid cell.
+
+---
+
+## The Merge Algorithm
+
+The game rule: drag source S onto target T — if both are the same tier, T advances one tier and
+S resets to tier A. If tiers differ, nothing happens.
+
+The algorithm uses a **snake path** through all 16 cells:
+
+```
+(3,3)→(3,2)→(3,1)→(3,0)→(2,0)→(2,1)→(2,2)→(2,3)
+                                              ↓
+(1,3)←(1,2)←(1,1)←(1,0)←────────────────────╯
+  ↓
+(0,0)→(0,1)→(0,2)→(0,3)  ← target (reaches tier 16)
+```
+
+Each cell's source is the previous cell in the path. The recursion (`tryAdvance` / `buildTo`)
+mirrors binary counting: to advance a cell one tier, first build its source to the same tier,
+then merge. This guarantees **zero invalid merges** and produces exactly **2¹⁵ − 1 = 32 767
+moves** per cycle. See `ALGORITHM.md` for worked examples and timing tables.
+
+---
+
+## UI Layout (`overlay_panel.xml`)
+
+The floating panel has two visibility states:
+
+**Idle** (`layout_idle` visible, `layout_running` gone):
+- Speed selector (`rg_speed`): Slow 1.5s / Normal 0.8s / Fast 0.35s
+- Status text (`tv_status`)
+- Debug toggle button (`btn_debug`)
+- Close button (`btn_close`)
+
+**Running** (`layout_running` visible, `layout_idle` + `btn_close` gone):
+- Move counter (`tv_move_number`): e.g. `1234 / 32767`
+- Moves left (`tv_moves_left`)
+- ETA (`tv_eta`): time to complete current cycle at current speed
+
+Debug mode (`layout_grid_adjust`) is only visible when `btn_debug` is active and shows
+Move grid (↑↓←→), individual edge nudge controls, and a 💾 Save button.
+
+---
+
+## Grid Calibration
+
+The debug overlay (`GridDebugView`) is a fullscreen transparent `TYPE_APPLICATION_OVERLAY`
+window drawn with `FLAG_LAYOUT_IN_SCREEN`. It draws the calibrated 4×4 grid and highlights
+the current swipe move.
+
+Calibration uses nudge buttons (40 px per tap):
+- **Move grid** (↑↓←→): shifts all 4 edges together — use this to fix a Y/X offset.
+- **Grid edges** (Top/Bot/Left/Right ↑↓): resize individual edges.
+
+After nudging, press 💾 Save to persist to SharedPreferences.
+
+**Known coordinate issue:** swipe gestures use absolute screen coordinates via `dispatchGesture()`.
+If gestures land offset from the calibrated visual grid, use the "Move grid ↑↓" buttons to align
+them. A `gestureYOffset` is measured from `getLocationOnScreen()` on the debug overlay and added
+to all gesture Y coordinates automatically.
+
+---
+
+## Debugging
+
+```
+# View live move log in Android Studio Logcat
+tag: IPH
+
+# Each move is logged as:
+# SW[1234]:(0,2)→(0,3) 661,1193→904,1193
+#   └─ move index    └─ cell coords   └─ pixel coords
+```
+
+The app also logs `gestureYOffset` and screen dimensions when the debug overlay is first shown.
+
+---
+
+## Key Conventions
+
+- **No Jetpack Compose** — all layouts are XML in `res/layout/`.
+- **ViewBinding** is enabled for Activities; services use `findViewById` (no binding in services).
+- `GridBounds` coordinates are **always raw pixels**, never dp or percentages.
+- All UI mutations from coroutines must use `Handler(Looper.getMainLooper()).post { }`.
+- `foregroundServiceType="mediaProjection"` in the manifest is required on Android 14+ — do not remove it.
+- `minSdk = 26`, `compileSdk / targetSdk = 34`, `jvmTarget = "1.8"`.
+- Speed delays live in `SPEED_DELAY_MS` in `OverlayService.Companion` — one place to change them.
+- `nudgeStep = 40` px per button tap in `OverlayService`.
+
+---
+
+## Files of Interest
+
+| File | Purpose |
+|------|---------|
+| `OverlayService.kt` | Main coordinator: merge loop, overlay panel, gesture dispatch |
+| `BatteryMerger.kt` | Pure algorithm: snake-path Tower of Hanoi sequence generator |
+| `GridConfig.kt` | `GridBounds` data class + SharedPreferences persistence |
+| `GridDebugView.kt` | Fullscreen calibration overlay with grid drawing and move arrow |
+| `SwipeAccessibilityService.kt` | Gesture injection via `dispatchGesture()` |
+| `overlay_panel.xml` | Floating control panel layout |
+| `ALGORITHM.md` | Full algorithm documentation with examples and timing tables |
+| `app/build.gradle.kts` | Contains `enableA11y` Gradle task for ADB accessibility re-enable |
