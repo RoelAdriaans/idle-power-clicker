@@ -100,6 +100,15 @@
             android:text="🔍 Debug"
             android:textSize="11sp" />
 
+        <!-- Reset move counter back to 0 — only shown while paused/idle -->
+        <Button
+            android:id="@+id/btn_reset"
+            android:layout_width="90dp"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="↺ Reset"
+            android:textSize="11sp" />
+
     </LinearLayout>
 
     <!-- Shown while running: move progress + ETA -->

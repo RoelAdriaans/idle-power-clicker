@@ -226,6 +226,7 @@ class OverlayService : Service() {
         view.findViewById<Button>(R.id.btn_start_stop).setOnClickListener { toggleMerge() }
         view.findViewById<Button>(R.id.btn_close).setOnClickListener { stopSelf() }
         view.findViewById<Button>(R.id.btn_debug).setOnClickListener { toggleDebug() }
+        view.findViewById<Button>(R.id.btn_reset).setOnClickListener { resetMoveCounter() }
 
         // Edge nudge buttons
         fun nudge(transform: GridBounds.() -> GridBounds) {
@@ -396,6 +397,18 @@ class OverlayService : Service() {
             overlayView?.findViewById<android.view.View>(R.id.btn_close)?.visibility = android.view.View.VISIBLE
         }
         setStatus("Idle")
+    }
+
+    /**
+     * Resets the move counter back to the start of the sweep sequence.
+     * Only reachable while paused/idle — `btn_reset` lives inside
+     * `layout_idle`, which is hidden whenever the merge loop is running.
+     * Guarded here too so a stray call while running is a no-op.
+     */
+    private fun resetMoveCounter() {
+        if (isRunning) return
+        sweepIter = 0
+        setStatus("Reset ✓")
     }
 
     private suspend fun executeMergeStep() {
