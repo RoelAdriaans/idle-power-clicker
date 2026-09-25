@@ -44,6 +44,7 @@ Idle Power has a 4×4 grid of batteries. 🔋 You merge matching batteries to cr
 - 🧠 Uses a mathematically proven merge sequence — zero wasted moves
 - 📊 Shows live progress: move counter, moves left, ETA to finish
 - ⏸️ Pause and resume without losing your place
+- ⏩ Speed up to 2x/4x, or ◀◀ rewind at 2x — swap direction/speed on the fly while running
 - 🔍 Debug mode to visually calibrate the grid
 - 😴 Works while you sleep
 
@@ -130,9 +131,8 @@ The first 8 tiers fly by in under a minute. ⚡ The last tier alone takes half t
   ✕ Close
 
 [ 🔥 Running screen ]
-  ◀◀2x  ▶▶2x   ← 2x2 grid, tap one to change speed/direction (only shown while running) ⚡
-  ▶▶4x           the active button turns green; tap it again for normal 1x forward
-                       tap the active one again to go back to normal 1x forward
+  ◀◀2x   ▶▶2x     ← 2×2 grid, tap one to change speed/direction (only shown while running) ⚡
+  ▶▶4x             the active button turns green 🟢 — tap it again for normal 1x forward
   1234 / 32767    ← current move 📍
   31533 left      ← almost there... 😤
   ETA 2h 47m      ← go make a coffee ☕ (updates live with speed/direction)
