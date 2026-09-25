@@ -20,6 +20,25 @@ injecting swipe gestures via the Accessibility API.
 
 There are **no unit tests** in this project. Validate changes with `assembleDebug`.
 
+The `enableA11y` Gradle task (in `app/build.gradle.kts`) shells out to `adb` to flip the
+`enabled_accessibility_services` secure setting — it requires a connected/authorized device
+and does nothing on CI.
+
+---
+
+## ⚠️ `docs/ARCHITECTURE.md` describes a different, unimplemented algorithm
+
+`docs/ARCHITECTURE.md` documents a computer-vision approach — `analyzeGrid()` /
+`findBestMerge()` / HSV `bucketColor()` — that captures the screen via `MediaProjection` and
+picks merges by reading battery colors live. **None of those functions exist in the current
+source** (`grep` confirms it). `OverlayService` does set up `MediaProjection` /
+`ImageReader` / `VirtualDisplay` (`setupCapture()`, `captureScreen()`), and `MainActivity`
+still requests the screen-capture permission from the user, but `captureScreen()` is dead
+code — nothing in the merge loop calls it. The **only** algorithm actually driving moves is
+the deterministic `BatteryMerger.sweepMove()` sequence described below. Treat
+`docs/ARCHITECTURE.md` as aspirational/stale; trust the source (`OverlayService.executeMergeStep()`)
+over that doc when they disagree.
+
 ---
 
 ## Architecture
@@ -52,6 +71,15 @@ for a full explanation. No Android dependencies.
 ### `GridBounds`
 Stores **absolute pixel coordinates** (never percentages or dp). Persisted to SharedPreferences
 via `GridConfig`. `cellCenter(row, col)` returns the centre pixel of a grid cell.
+
+### `MainActivity`
+Setup screen only — not shown while the overlay is active. Walks the user through three
+gates before enabling **Launch**: overlay permission (`Settings.canDrawOverlays`),
+accessibility service enabled (`Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES`), and grid
+calibration via percentage sliders (`GridConfig.save`). Launch requests the
+`MediaProjectionManager` screen-capture intent and forwards the `resultCode`/`Intent` to
+`OverlayService` via `startForegroundService()`, then finishes itself — the floating panel
+takes over from there.
 
 ---
 
@@ -109,10 +137,14 @@ Calibration uses nudge buttons (40 px per tap):
 
 After nudging, press 💾 Save to persist to SharedPreferences.
 
-**Known coordinate issue:** swipe gestures use absolute screen coordinates via `dispatchGesture()`.
-If gestures land offset from the calibrated visual grid, use the "Move grid ↑↓" buttons to align
-them. A `gestureYOffset` is measured from `getLocationOnScreen()` on the debug overlay and added
-to all gesture Y coordinates automatically.
+**Coordinate offset:** swipe gestures use absolute screen coordinates via `dispatchGesture()`,
+while `GridBounds` are stored in the overlay's local coordinate space. `OverlayService` measures
+a `gestureYOffset` at service startup (`measureGestureOffset()` — a throwaway 1×1 probe view
+added at `(0,0)`, whose `getLocationOnScreen()` reveals how far the window origin sits below the
+true screen top on this device) and adds it to every gesture Y coordinate. This offset is
+re-measured (redundantly, but harmlessly) whenever the debug overlay is shown. Do not remove the
+startup measurement — without it, `gestureYOffset` stays `0` until the debug overlay is opened at
+least once, so swipes silently miss their targets on a fresh launch.
 
 ---
 
@@ -127,7 +159,7 @@ tag: IPH
 #   └─ move index    └─ cell coords   └─ pixel coords
 ```
 
-The app also logs `gestureYOffset` and screen dimensions when the debug overlay is first shown.
+The app also logs `gestureYOffset` (both at startup and whenever the debug overlay is shown) and screen dimensions.
 
 ---
 

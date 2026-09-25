@@ -69,7 +69,10 @@ class OverlayService : Service() {
      * status bar / display cutout even when FLAG_LAYOUT_IN_SCREEN is set.
      * GridBounds are stored in the overlay's local coordinate space, so we
      * must add this offset when dispatching gestures (which use absolute
-     * screen coords).  Populated once the debug overlay is first shown.
+     * screen coords). Measured once at service startup via
+     * [measureGestureOffset], and re-measured whenever the debug overlay is
+     * shown (harmless — same value, just keeps the debug view's own
+     * measurement path intact).
      */
     private var gestureYOffset = 0
 
@@ -85,6 +88,7 @@ class OverlayService : Service() {
         createNotificationChannel()
         startForeground(NOTIF_ID, buildNotification())
         showOverlay()
+        measureGestureOffset()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -132,6 +136,38 @@ class OverlayService : Service() {
             windowManager.defaultDisplay.getRealMetrics(dm)
             screenWidth  = dm.widthPixels
             screenHeight = dm.heightPixels
+        }
+    }
+
+    /**
+     * Measures [gestureYOffset] once at startup so gestures land correctly
+     * even if the user never opens the debug overlay (which previously was
+     * the only place this offset got computed). Adds a throwaway 1×1
+     * fullscreen-anchored probe view at (0,0), reads back its true on-screen
+     * position, then removes it.
+     */
+    private fun measureGestureOffset() {
+        val probe = View(this)
+        val params = WindowManager.LayoutParams(
+            1, 1,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = 0; y = 0
+        }
+
+        runCatching { windowManager.addView(probe, params) }.onFailure { return }
+
+        probe.post {
+            val loc = IntArray(2)
+            probe.getLocationOnScreen(loc)
+            gestureYOffset = loc[1]
+            android.util.Log.d("IPH", "gestureYOffset(startup)=$gestureYOffset  screen=${screenWidth}x${screenHeight}")
+            runCatching { windowManager.removeView(probe) }
         }
     }
 
