@@ -118,9 +118,23 @@ The floating panel has two visibility states:
 - Close button (`btn_close`)
 
 **Running** (`layout_running` visible, `layout_idle` + `btn_close` gone):
+- Speed/direction toggles — three mutually-exclusive buttons in a `GridLayout` 2×2 grid (4th
+  cell empty, giving each button more room than a cramped single row), all driving
+  `currentDelayMs()`:
+  - `btn_reverse_2x` ("◀◀2x"): `playDirection = -1`, `speedMultiplier = 2` — rewinds through the
+    move sequence (decrements `sweepIter`) at 2× speed.
+  - `btn_fast_forward` ("▶▶2x"): `playDirection = 1`, `speedMultiplier = 2`.
+  - `btn_fast_forward_4x` ("▶▶4x"): `playDirection = 1`, `speedMultiplier = 4`.
+  Tapping the active one reverts to normal 1x-forward (`togglePlaybackMode()`). The active
+  button is highlighted via `backgroundTintList` (green `#4CAF50`) instead of changing its
+  label text — `updatePlaybackButtonsUi()` applies the tint and restores `defaultButtonTint`
+  (captured once from `btn_reverse_2x` at panel-creation time) on the other two. All three
+  live inside `layout_running`, so — mirroring `btn_reset` — they're only visible/tappable
+  while the merge loop is running. State persists across pause/resume, like `speedKey`.
+  `sweepMove()` already wraps negative indices, so rewinding past move 0 is safe.
 - Move counter (`tv_move_number`): e.g. `1234 / 32767`
 - Moves left (`tv_moves_left`)
-- ETA (`tv_eta`): time to complete current cycle at current speed
+- ETA (`tv_eta`): time to complete current cycle at current speed/direction
 
 Debug mode (`layout_grid_adjust`) is only visible when `btn_debug` is active and shows
 Move grid (↑↓←→), individual edge nudge controls, and a 💾 Save button.
@@ -176,6 +190,9 @@ The app also logs `gestureYOffset` (both at startup and whenever the debug overl
 - **AGP 9.x built-in Kotlin support**: there is no `org.jetbrains.kotlin.android` plugin and no `kotlinOptions {}` block — AGP applies its own bundled Kotlin compiler. Don't re-add either; it will fail to apply under AGP 9+.
 - Gradle wrapper tracks the latest stable Gradle release; keep root `build.gradle.kts`'s AGP/Kotlin `classpath` versions and `settings.gradle.kts`'s `foojay-resolver-convention` version compatible with it (check each tool's own release notes before bumping the wrapper alone — AGP 8.x cannot run on Gradle ≥ 9.6, so wrapper and AGP versions must be upgraded together).
 - Speed delays live in `SPEED_DELAY_MS` in `OverlayService.Companion` — one place to change them.
+  `currentDelayMs()` applies the active `speedMultiplier` (1x/2x/4x) on top; use it (not
+  `SPEED_DELAY_MS` directly) anywhere a per-move delay or ETA is computed. `executeMergeStep()`
+  advances `sweepIter` by `playDirection` (±1), not a bare increment.
 - `nudgeStep = 40` px per button tap in `OverlayService`.
 
 ---

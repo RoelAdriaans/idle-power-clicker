@@ -130,9 +130,12 @@ The first 8 tiers fly by in under a minute. ⚡ The last tier alone takes half t
   ✕ Close
 
 [ 🔥 Running screen ]
+  ◀◀2x  ▶▶2x   ← 2x2 grid, tap one to change speed/direction (only shown while running) ⚡
+  ▶▶4x           the active button turns green; tap it again for normal 1x forward
+                       tap the active one again to go back to normal 1x forward
   1234 / 32767    ← current move 📍
   31533 left      ← almost there... 😤
-  ETA 2h 47m      ← go make a coffee ☕
+  ETA 2h 47m      ← go make a coffee ☕ (updates live with speed/direction)
 ```
 
 ---

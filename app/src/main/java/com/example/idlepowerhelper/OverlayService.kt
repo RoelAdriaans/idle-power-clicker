@@ -64,6 +64,15 @@ class OverlayService : Service() {
     private var speedKey     = "normal"
     private var sweepIter    = 0
 
+    /** 1 = forward, -1 = reverse (rewinds through the move sequence). */
+    private var playDirection = 1
+
+    /** Multiplies the base speed delay's inverse: 1x / 2x / 4x. */
+    private var speedMultiplier = 1
+
+    /** Captured once from `btn_reverse_2x` so the highlight tint can be reverted. */
+    private var defaultButtonTint: android.content.res.ColorStateList? = null
+
     /**
      * Y offset (pixels) between the overlay view's coordinate space and the
      * absolute screen coordinates expected by dispatchGesture().
@@ -230,6 +239,11 @@ class OverlayService : Service() {
         view.findViewById<Button>(R.id.btn_close).setOnClickListener { stopSelf() }
         view.findViewById<Button>(R.id.btn_debug).setOnClickListener { toggleDebug() }
         view.findViewById<Button>(R.id.btn_reset).setOnClickListener { resetMoveCounter() }
+        val reverseBtn = view.findViewById<Button>(R.id.btn_reverse_2x)
+        defaultButtonTint = reverseBtn.backgroundTintList
+        reverseBtn.setOnClickListener { togglePlaybackMode(direction = -1, multiplier = 2) }
+        view.findViewById<Button>(R.id.btn_fast_forward).setOnClickListener { togglePlaybackMode(direction = 1, multiplier = 2) }
+        view.findViewById<Button>(R.id.btn_fast_forward_4x).setOnClickListener { togglePlaybackMode(direction = 1, multiplier = 4) }
 
         // Edge nudge buttons
         fun nudge(transform: GridBounds.() -> GridBounds) {
@@ -398,7 +412,7 @@ class OverlayService : Service() {
         scope.launch {
             while (isRunning) {
                 executeMergeStep()
-                delay(SPEED_DELAY_MS[speedKey] ?: 800L)
+                delay(currentDelayMs())
             }
         }
     }
@@ -426,6 +440,51 @@ class OverlayService : Service() {
         setStatus("Reset ✓")
     }
 
+    /**
+     * Toggles between normal 1x-forward playback and one of the three
+     * fast/reverse modes. `btn_reverse_2x` / `btn_fast_forward` /
+     * `btn_fast_forward_4x` live inside `layout_running`, so they're only
+     * visible/tappable while the merge loop is active. The three buttons are
+     * mutually exclusive — tapping the one that's already active reverts to
+     * normal 1x forward playback. The active button is highlighted via its
+     * background tint (green) instead of its label text.
+     */
+    private fun togglePlaybackMode(direction: Int, multiplier: Int) {
+        if (playDirection == direction && speedMultiplier == multiplier) {
+            playDirection = 1
+            speedMultiplier = 1
+        } else {
+            playDirection = direction
+            speedMultiplier = multiplier
+        }
+        Handler(Looper.getMainLooper()).post { updatePlaybackButtonsUi() }
+    }
+
+    /** Tints the active speed/direction button green; the others revert to their default tint. */
+    private fun updatePlaybackButtonsUi() {
+        val reverseBtn = overlayView?.findViewById<Button>(R.id.btn_reverse_2x)
+        val forward2xBtn = overlayView?.findViewById<Button>(R.id.btn_fast_forward)
+        val forward4xBtn = overlayView?.findViewById<Button>(R.id.btn_fast_forward_4x)
+
+        fun tint(btn: Button?, active: Boolean) {
+            btn?.backgroundTintList = if (active) {
+                android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#4CAF50"))
+            } else {
+                defaultButtonTint
+            }
+        }
+
+        tint(reverseBtn, playDirection == -1 && speedMultiplier == 2)
+        tint(forward2xBtn, playDirection == 1 && speedMultiplier == 2)
+        tint(forward4xBtn, playDirection == 1 && speedMultiplier == 4)
+    }
+
+    /** Delay between swipes, divided by the active speed multiplier (1x/2x/4x). */
+    private fun currentDelayMs(): Long {
+        val base = SPEED_DELAY_MS[speedKey] ?: 800L
+        return base / speedMultiplier
+    }
+
     private suspend fun executeMergeStep() {
         val bounds = currentBounds
             ?: GridConfig.load(this@OverlayService)
@@ -434,7 +493,7 @@ class OverlayService : Service() {
         val move = BatteryMerger.sweepMove(sweepIter)
         val moveNum  = (sweepIter % BatteryMerger.SWEEP_SIZE) + 1
         val movesLeft = BatteryMerger.SWEEP_SIZE - moveNum
-        val etaMs    = movesLeft * (SPEED_DELAY_MS[speedKey] ?: 800L)
+        val etaMs    = movesLeft * currentDelayMs()
         val etaStr   = formatDuration(etaMs)
 
         logMove("SW[$moveNum]:", move,
@@ -449,7 +508,7 @@ class OverlayService : Service() {
             overlayView?.findViewById<TextView>(R.id.tv_eta)?.text = "ETA $etaStr"
         }
 
-        sweepIter++
+        sweepIter += playDirection
         executeSwipe(move, bounds)
     }
 
