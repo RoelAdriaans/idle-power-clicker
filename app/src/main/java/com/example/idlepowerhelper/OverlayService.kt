@@ -38,6 +38,9 @@ class OverlayService : Service() {
 
         /** Delay between merge attempts in milliseconds, keyed by speed setting. */
         private val SPEED_DELAY_MS = mapOf("slow" to 1500L, "normal" to 800L, "fast" to 350L)
+
+        /** Smallest allowed grid width/height (px) — guards against edge nudges crossing over. */
+        private const val MIN_GRID_SIZE_PX = 160
     }
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -230,8 +233,14 @@ class OverlayService : Service() {
 
         // Edge nudge buttons
         fun nudge(transform: GridBounds.() -> GridBounds) {
-            currentBounds = (currentBounds ?: GridConfig.load(this) ?: GridConfig.default(screenWidth, screenHeight))
-                .transform()
+            val base = currentBounds ?: GridConfig.load(this) ?: GridConfig.default(screenWidth, screenHeight)
+            val next = base.transform()
+            // Guard against edges crossing each other (e.g. repeatedly tapping
+            // "Left in"/"Right in") which would produce a zero/negative-size
+            // grid and break cellCenter() math. Ignore nudges that would
+            // shrink either dimension below a sane minimum.
+            if (next.width < MIN_GRID_SIZE_PX || next.height < MIN_GRID_SIZE_PX) return
+            currentBounds = next
             debugView?.bounds = currentBounds
             debugView?.postInvalidate()
         }
@@ -273,7 +282,7 @@ class OverlayService : Service() {
         var startPx   = 0
         var startPy   = 0
 
-        view.setOnTouchListener { _, ev ->
+        view.setOnTouchListener { v, ev ->
             when (ev.action) {
                 MotionEvent.ACTION_DOWN -> {
                     startRawX = ev.rawX; startRawY = ev.rawY
@@ -285,6 +294,12 @@ class OverlayService : Service() {
                     params.y = startPy + (ev.rawY   - startRawY).toInt()
                     windowManager.updateViewLayout(view, params)
                     true
+                }
+                MotionEvent.ACTION_UP -> {
+                    // Required so accessibility services (e.g. TalkBack) can
+                    // properly recognize a tap-without-drag on this view.
+                    v.performClick()
+                    false
                 }
                 else -> false
             }
@@ -474,14 +489,13 @@ class OverlayService : Service() {
     // ── Notification ──────────────────────────────────────────────────────────
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val ch = NotificationChannel(
-                CHANNEL_ID,
-                "Idle Power Helper",
-                NotificationManager.IMPORTANCE_LOW
-            )
-            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(ch)
-        }
+        // minSdk is 26 (O), so notification channels always need creating here.
+        val ch = NotificationChannel(
+            CHANNEL_ID,
+            "Idle Power Helper",
+            NotificationManager.IMPORTANCE_LOW
+        )
+        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(ch)
     }
 
     private fun buildNotification(): Notification {
