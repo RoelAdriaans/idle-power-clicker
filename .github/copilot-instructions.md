@@ -170,7 +170,9 @@ The app also logs `gestureYOffset` (both at startup and whenever the debug overl
 - `GridBounds` coordinates are **always raw pixels**, never dp or percentages.
 - All UI mutations from coroutines must use `Handler(Looper.getMainLooper()).post { }`.
 - `foregroundServiceType="mediaProjection"` in the manifest is required on Android 14+ — do not remove it.
-- `minSdk = 26`, `compileSdk / targetSdk = 34`, `jvmTarget = "1.8"`.
+- `minSdk = 26`, `compileSdk / targetSdk = 34`, Java/Kotlin target = 1.8 (set via `compileOptions` in `app/build.gradle.kts`).
+- **AGP 9.x built-in Kotlin support**: there is no `org.jetbrains.kotlin.android` plugin and no `kotlinOptions {}` block — AGP applies its own bundled Kotlin compiler. Don't re-add either; it will fail to apply under AGP 9+.
+- Gradle wrapper tracks the latest stable Gradle release; keep root `build.gradle.kts`'s AGP/Kotlin `classpath` versions and `settings.gradle.kts`'s `foojay-resolver-convention` version compatible with it (check each tool's own release notes before bumping the wrapper alone — AGP 8.x cannot run on Gradle ≥ 9.6, so wrapper and AGP versions must be upgraded together).
 - Speed delays live in `SPEED_DELAY_MS` in `OverlayService.Companion` — one place to change them.
 - `nudgeStep = 40` px per button tap in `OverlayService`.
 

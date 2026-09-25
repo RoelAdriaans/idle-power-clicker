@@ -1,6 +1,5 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
 }
 
 android {
@@ -30,10 +29,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_1_8
     }
 
-    kotlinOptions {
-        jvmTarget = "1.8"
-    }
-
     buildFeatures {
         viewBinding = true
     }
@@ -49,15 +44,21 @@ dependencies {
 
 // After `./gradlew installDebug`, run `./gradlew enableA11y` to re-enable
 // the Accessibility Service without opening phone settings.
-tasks.register<Exec>("enableA11y") {
+val enableA11yService = tasks.register<Exec>("enableA11yService") {
     val pkg = "com.example.idlepowerhelper"
     val svc = "$pkg/.SwipeAccessibilityService"
     commandLine(
         "adb", "shell", "settings", "put", "secure",
         "enabled_accessibility_services", svc
     )
-    doLast {
-        exec { commandLine("adb", "shell", "settings", "put", "secure", "accessibility_enabled", "1") }
-    }
+}
+
+val enableA11yGlobal = tasks.register<Exec>("enableA11yGlobal") {
+    dependsOn(enableA11yService)
+    commandLine("adb", "shell", "settings", "put", "secure", "accessibility_enabled", "1")
+}
+
+tasks.register("enableA11y") {
+    dependsOn(enableA11yGlobal)
     description = "Re-enables the IPH Accessibility Service via ADB (dev only)"
 }
