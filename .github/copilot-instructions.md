@@ -58,7 +58,7 @@ MainActivity  ──launches──▶  OverlayService          (foreground servi
 Central coordinator. Owns the floating `overlay_panel` control panel and the coroutine merge loop.
 - Loop runs on `Dispatchers.Default`; all UI updates post to main thread via `Handler(Looper.getMainLooper()).post { }`.
 - Uses `SupervisorJob` so individual step failures don't cancel the whole loop.
-- `sweepIter` tracks position in the 32 767-move sequence and is **never reset on pause** — only on service restart.
+- `sweepIter` tracks position in the 32 767-move sequence and is **never reset on pause** — only on service restart, or explicitly via the **↺ Reset** button (`resetMoveCounter()`, only reachable while paused/idle).
 
 ### `SwipeAccessibilityService`
 Exposes itself via `companion object { var instance }`. `performSwipe()` **must be called from the main thread** — it wraps `dispatchGesture()` which is main-thread-only.
@@ -113,6 +113,8 @@ The floating panel has two visibility states:
 - Speed selector (`rg_speed`): Slow 1.5s / Normal 0.8s / Fast 0.35s
 - Status text (`tv_status`)
 - Debug toggle button (`btn_debug`)
+- Reset button (`btn_reset`): zeroes `sweepIter` back to 0. Lives inside `layout_idle`, so it's
+  hidden automatically whenever the merge loop is running — no separate visibility logic needed.
 - Close button (`btn_close`)
 
 **Running** (`layout_running` visible, `layout_idle` + `btn_close` gone):

@@ -126,6 +126,7 @@ The first 8 tiers fly by in under a minute. ⚡ The last tier alone takes half t
   ● Normal (0.8s) 🚶
   ○ Fast (0.35s) 🚀
   🔍 Debug
+  ↺ Reset         ← zero the move counter (only shown while paused/idle) 🔄
   ✕ Close
 
 [ 🔥 Running screen ]
